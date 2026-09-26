@@ -1,0 +1,6 @@
+# dsh-model-tweaks bundle patch: mounts the plugin as one cordis loader entry.
+# The `id` here must stay identical to `__ModuleLoader__.load({ id })` in lib/client.js
+# and to the `name` exported by lib/index.js (test/manifest.test.mjs asserts all three).
+- insert:
+    - id: dsh-model-tweaks
+      name: 'dsh-model-tweaks'
