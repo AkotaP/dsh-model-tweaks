@@ -138,6 +138,7 @@ llm-pi-ai.providers.<providerId>.models[i] = {
 - host 半零外部依赖：不 import 任何 `@deepseek-ai/*`，全部能力经 `ctx.get("…")` 宽容读取；若将来真的 import，必须同时声明依赖并装进该插件自己的 `node_modules`（manifest 测试有守卫）。host 用 Node 原生 ESM 解析，裸包名只从插件目录向上查找。
 - client 半需要的包只写进 `package.json` 的 `dsh.client.inject`（即 DSH 客户端模块图与激活顺序），不需要安装：`@deepseek-ai/dsh-client-runtime`、`-locale`、`-ui-slots`、`-ui-settings`；`react` / `react/jsx-runtime` 是基线模块，不声明。
 - client 改动由 `dsh-client-hmr` 重载 bundle，页面无需手动刷新；host 改动必须重启 DSH。
+- 兼容性声明写在 `peerDependencies`：DSH 只校验名字为 `@deepseek-ai/dsh` 或以 `@deepseek-ai/dsh-` 开头的条目，把声明范围与自己的运行时版本（prerelease 参与比较）做 semver 判定；不满足时安装被拒绝、启动给出告警，可用 `dsh plugin allow-version <包@版本> --dsh-version <确切版本>` 做确切版本豁免（记录在该 profile 的 `compatibility.json`）。`engines.dsh` 只是文档，运行时不会读取；`@deepseek-ai/cordis` 不在校验范围内。
 
 ## 9. 测试与验收
 

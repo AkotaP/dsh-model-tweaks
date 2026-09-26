@@ -38,6 +38,25 @@ test("package.json declares the host entry, the client entry and the bundle patc
   assert.ok(manifest.engines.dsh, "engines.dsh must stay declared");
 });
 
+/**
+ * The DSH runtime decides whether a plugin is compatible by reading **peerDependencies** entries
+ * named `@deepseek-ai/dsh` or `@deepseek-ai/dsh-*` and comparing the range with its own version
+ * (prereleases included); a mismatch refuses the install and warns on startup. `engines.dsh` is
+ * documentation only — the runtime never reads it — so this declaration is the one that actually
+ * gates compatibility and must not be dropped, and `@deepseek-ai/cordis` does not count as one.
+ */
+test("package.json declares the DSH runtime it supports as a dsh peer", () => {
+  const peers = manifest.peerDependencies ?? {};
+  const dshPeers = Object.keys(peers).filter((name) => name === "@deepseek-ai/dsh" || name.startsWith("@deepseek-ai/dsh-"));
+  assert.ok(dshPeers.length > 0, "declare a @deepseek-ai/dsh peer: without one dsh never checks this plugin's compatibility");
+  for (const name of dshPeers) {
+    assert.equal(typeof peers[name], "string", name + " must declare a version range");
+    assert.match(peers[name], /^[\^~]?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/, name + " must keep a caret/tilde range dsh can compare against its prerelease version");
+    assert.equal(manifest.peerDependenciesMeta?.[name]?.optional, true, name + " must stay optional so pnpm never demands it be installed");
+  }
+  assert.ok(!dshPeers.includes("@deepseek-ai/cordis"), "the cordis peer is not a dsh runtime peer and is not checked");
+});
+
 test("dsh.client.inject declares the DSH client plugin modules, not bare Node module names", () => {
   const inject = manifest.dsh.client.inject;
   assert.deepEqual(inject, [

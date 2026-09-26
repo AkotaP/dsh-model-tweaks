@@ -24,7 +24,7 @@
 | client（`lib/client.js`） | DSH 客户端模块表（`__ModuleLoader__`） | 用到的客户端插件包写进 `package.json` 的 `dsh.client.inject`，不需要安装；`react` / `react/jsx-runtime` 是基线模块，不声明 |
 
 - `dsh.client.inject` 的语义是「客户端模块图 + 激活顺序」，不是 Node 包名。当前列：`@deepseek-ai/dsh-client-runtime`、`-locale`、`-ui-slots`、`-ui-settings`（`ui-slots` 提供 `slots`，`client-locale` 提供 `locale`，声明与实际用到的服务必须对应）。
-- `peerDependencies` 只保留 `@deepseek-ai/cordis`（optional）。
+- `peerDependencies` 里 `@deepseek-ai/cordis`（optional）是给 pnpm 看的；`@deepseek-ai/dsh` 的 `^0.1.7-rc.2` 是**兼容性声明**（判定规则见 CONTRACT §8），两项都标 optional 只是避免 pnpm 索要它们，manifest 测试会守着 dsh peer 不被删掉。
 - host 一旦需要 import DSH 包，manifest 测试会要求同步补 `dependencies`，否则测试变红。
 
 ## 3. 生效机制

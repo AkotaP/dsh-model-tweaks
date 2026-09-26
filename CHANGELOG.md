@@ -9,6 +9,7 @@ No version has been released yet, so the entries below carry no release dates, a
 ### Added
 
 - `repository` metadata in `package.json` and this changelog.
+- An explicit DSH compatibility declaration — `@deepseek-ai/dsh` `^0.1.7-rc.2` in `peerDependencies`, the field the runtime actually checks (a mismatch refuses the install) — and a manifest test that keeps it from being dropped.
 
 ### Changed
 
