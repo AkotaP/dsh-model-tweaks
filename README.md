@@ -4,6 +4,8 @@
 
 DSH（DeepSeek Harness）Web 插件：在「设置」里多一个 **模型能力** 页面，用来管理每个模型的上下文窗口、最大输出、输入模态、思考挡位，以及插件自管的全局预设。
 
+支持 DSH `0.1.7-rc.2` 及以上（0.1.x）。
+
 ## 作用
 
 - 位置：设置 → **模型能力**（页内两个页签：模型能力 / 预设）。
@@ -38,8 +40,6 @@ DSH（DeepSeek Harness）Web 插件：在「设置」里多一个 **模型能力
 > 安装会改动 `%USERPROFILE%\.dsh` 下的 profile 配置，并且需要重启 DSH（重启会打断正在跑的会话）。请确认后执行。
 
 仓库：<https://github.com/AkotaP/dsh-model-tweaks>
-
-**兼容性**：支持 DSH `^0.1.7-rc.2`（写在 `peerDependencies` 的 `@deepseek-ai/dsh`）。DSH 在安装和启动时都会校验这个范围，不匹配会拒绝安装；确实需要时可用 `dsh plugin allow-version <包@版本> --dsh-version <版本>` 对确切版本做一次豁免。
 
 **在「插件」页里装**：侧边栏「插件」→「添加插件」，填入仓库地址 `https://github.com/AkotaP/dsh-model-tweaks`（同处也接受 npm 包名 `dsh-model-tweaks`、本地目录绝对路径和 tarball）。DSH 会先用 `git ls-remote` 探一次仓库再交给 pnpm，装完在列表里确认它是启用状态。
 

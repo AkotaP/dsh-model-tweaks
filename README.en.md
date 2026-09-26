@@ -4,6 +4,8 @@
 
 A DSH (DeepSeek Harness) web plugin: adds a **Model Capabilities** page to Settings for managing each model's context window, max output, input modalities and reasoning levels, plus the plugin's own global preset lists.
 
+Supports DSH `0.1.7-rc.2` and later (0.1.x).
+
 ## What it does
 
 - Location: Settings → **Model Capabilities** (two tabs: Model Capabilities / Presets).
@@ -38,8 +40,6 @@ The `Presets` tab manages four plugin-owned lists. Each one is a card, and **eve
 > Installing changes the profile config under `%USERPROFILE%\.dsh` and requires a DSH restart (which interrupts running sessions). Confirm before installing.
 
 Repository: <https://github.com/AkotaP/dsh-model-tweaks>
-
-**Compatibility**: DSH `^0.1.7-rc.2`, declared as the `@deepseek-ai/dsh` peer dependency. DSH checks that range at install time and at startup and refuses a mismatch; `dsh plugin allow-version <pkg@version> --dsh-version <version>` exempts one exact version when needed.
 
 **Install from the Plugin page**: sidebar → **Plugin** → **Add plugin**, and enter the repository address `https://github.com/AkotaP/dsh-model-tweaks` (the same field also takes the npm package name `dsh-model-tweaks`, an absolute local directory, or a tarball). DSH probes the repository with `git ls-remote` before handing the spec to pnpm; afterwards check that the entry is enabled in the list.
 

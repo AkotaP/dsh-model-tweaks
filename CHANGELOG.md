@@ -15,6 +15,7 @@ No version has been released yet, so the entries below carry no release dates, a
 
 - `README.md` reduced to four sections (what it does, presets, install, test) and mirrored by `README.en.md`; both link the repository and this changelog.
 - `docs/CONTRACT.md` and `docs/HANDOFF.md` rewritten as concise third-person references: interface and data semantics in the former, engineering conventions and test infrastructure in the latter.
+- `README.md` and `README.en.md` link each other and state the supported DSH range in one line; the compatibility mechanism stays in the contract.
 - Install instructions now cover the three supported routes — the Plugin page's **Add plugin** field, `dsh plugin --profile desktop add <spec>`, and a copy-paste prompt for agent-driven installs — using the GitHub repository address, since the package is not on npm yet; the manual link / junction steps are gone.
 
 ## [0.1.0] — not released
