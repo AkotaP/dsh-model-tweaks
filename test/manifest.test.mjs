@@ -51,7 +51,7 @@ test("package.json declares the DSH runtime it supports as a dsh peer", () => {
   assert.ok(dshPeers.length > 0, "declare a @deepseek-ai/dsh peer: without one dsh never checks this plugin's compatibility");
   for (const name of dshPeers) {
     assert.equal(typeof peers[name], "string", name + " must declare a version range");
-    assert.match(peers[name], /^[\^~]?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/, name + " must keep a caret/tilde range dsh can compare against its prerelease version");
+    assert.match(peers[name], /^(?:[\^~]|>=)?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/, name + " must declare a caret/tilde/>= floor range dsh can compare against its prerelease version");
     assert.equal(manifest.peerDependenciesMeta?.[name]?.optional, true, name + " must stay optional so pnpm never demands it be installed");
   }
   assert.ok(!dshPeers.includes("@deepseek-ai/cordis"), "the cordis peer is not a dsh runtime peer and is not checked");
