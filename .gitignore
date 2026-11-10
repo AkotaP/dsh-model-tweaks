@@ -1,6 +1,7 @@
 node_modules/
 pnpm-lock.yaml
 .playwright-mcp/
+.mnemon/
 *.log
 .DS_Store
 Thumbs.db
