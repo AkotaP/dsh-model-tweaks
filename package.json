@@ -1,6 +1,6 @@
 {
   "name": "dsh-model-tweaks",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "DSH web plugin: a Model Capabilities page in Settings — manage per-model Context Window, Max Output, Input Modalities and Reasoning Levels (Default = drop the field), plus global preset lists.",
   "type": "module",
   "main": "lib/index.js",
@@ -29,7 +29,8 @@
         "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-slots",
-        "@deepseek-ai/dsh-client-ui-settings"
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-model-selection"
       ],
       "platform": "web"
     }

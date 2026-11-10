@@ -64,6 +64,8 @@ test("dsh.client.inject declares the DSH client plugin modules, not bare Node mo
     "@deepseek-ai/dsh-client-locale",
     "@deepseek-ai/dsh-client-ui-slots",
     "@deepseek-ai/dsh-client-ui-settings",
+    // v1.19: provides ctx.modelDirectories, the service the model-switch hook wraps.
+    "@deepseek-ai/dsh-client-ui-model-selection",
   ], "client inject lists the client module graph + activation order (same shape as dsh-archived-sessions)");
   assert.equal(new Set(inject).size, inject.length, "no duplicate entries");
   assert.ok(!inject.includes("react") && !inject.includes("react/jsx-runtime"), "react and react/jsx-runtime are baseline client modules and must not be declared");

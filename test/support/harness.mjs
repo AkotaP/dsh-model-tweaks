@@ -489,11 +489,25 @@ export function makeClientContext({ locale, services = {}, guarded = [], slotRes
   const slots = new Map();
   const registered = [];
   const injections = [];
+  /** Cordis service injections through `ctx.inject(deps, callback)` (v1.19). */
+  const serviceInjections = [];
   const localeDouble = locale === undefined ? makeLocaleDouble() : null;
   const localeService = locale ?? localeDouble.service;
   const ctx = {
     locale: localeService,
     effect(fn) { const dispose = fn(); return typeof dispose === "function" ? dispose : () => {}; },
+    /**
+     * Cordis-style lazy service injection (v1.19): record the dependency and, when the double
+     * already provides it, run the callback with this context as the scope. Missing services
+     * leave the callback unrun, mirroring "wait until the providing plugin loads".
+     */
+    inject(deps, callback) {
+      const list = Array.isArray(deps) ? deps : [deps];
+      for (const dep of list) serviceInjections.push(dep);
+      const ready = list.every((dep) => !guarded.includes(dep) && (dep in services));
+      if (ready && typeof callback === "function") callback(ctx);
+      return () => {};
+    },
     get: (name) => (guarded.includes(name) ? uninjected(name) : (name in ctx ? ctx[name] : services[name])),
     slots: {
       inject(name, callback) {
@@ -515,7 +529,98 @@ export function makeClientContext({ locale, services = {}, guarded = [], slotRes
     });
   }
   for (const key of Object.keys(services)) if (!(key in ctx)) ctx[key] = services[key];
-  return { ctx, slots, injections, locale: localeService, registered, localeDouble };
+  return { ctx, slots, injections, serviceInjections, locale: localeService, registered, localeDouble };
+}
+
+/**
+ * A double of one `ModelDirectory` from `@deepseek-ai/dsh-client-ui-model-selection` (v1.19).
+ *
+ * The plugin's model-switch hook reads `store.getSnapshot().current` and
+ * `catalog.reasoningFor(selection)` on the instance `directoryFor()` returns, then hands the
+ * (possibly rewritten) selection to the original `select`. This double reproduces exactly that
+ * shape: `reasoning` is keyed `"<provider>:<model>"` and holds `{ efforts: [{ id, name }], defaultEffort? }`;
+ * a missing key means "the model advertises no reasoning metadata".
+ *
+ * @returns `{ store, catalog, calls, select, setCurrent }` — `calls` records the selections the
+ *          original `select` received (i.e. after the plugin rewrote them).
+ */
+export function createModelDirectoryDouble({ current = null, reasoning = {}, status = "ready", outcome } = {}) {
+  const state = { current: current === null ? null : { ...current }, status };
+  const calls = [];
+  return {
+    store: {
+      getSnapshot: () => ({ current: state.current === null ? null : { ...state.current }, status: state.status, groups: [], failures: [], pending: null, error: null }),
+      subscribe: () => () => {},
+    },
+    catalog: {
+      reasoningFor(selection) {
+        if (selection === null || typeof selection !== "object") return undefined;
+        return reasoning[String(selection.provider) + ":" + String(selection.model)];
+      },
+    },
+    calls,
+    setCurrent(next) { state.current = next === null ? null : { ...next }; },
+    select(selection) {
+      calls.push(selection);
+      // v1.19: the plugin only records a memory after a successful selection, so a test needs a
+      // directory whose select rejects without moving the current route.
+      if (outcome !== undefined && outcome.ok === false) return Promise.resolve(outcome);
+      state.current = { ...selection };
+      return Promise.resolve({ ok: true, value: undefined });
+    },
+  };
+}
+
+/**
+ * Install a `localStorage` double (v1.19): the plugin's per-model effort memory lives in browser
+ * storage, never in a config document, so the switch-hook tests need to seed and inspect it.
+ * Returns `{ storage, read, write, seed, raw }`; `read` answers `null` for a missing key like the
+ * real API. `removeLocalStorage()` restores the "no storage available" environment.
+ */
+export function installLocalStorage(initial = {}) {
+  const values = new Map(Object.entries(initial).map(([key, value]) => [String(key), String(value)]));
+  const storage = {
+    getItem(key) { const stored = values.get(String(key)); return stored === undefined ? null : stored; },
+    setItem(key, value) { values.set(String(key), String(value)); },
+    removeItem(key) { values.delete(String(key)); },
+    clear() { values.clear(); },
+    key(index) { return [...values.keys()][index] ?? null; },
+    get length() { return values.size; },
+  };
+  globalThis.localStorage = storage;
+  return {
+    storage,
+    read: (key) => (values.has(String(key)) ? values.get(String(key)) : null),
+    write: (key, value) => { values.set(String(key), String(value)); },
+    seed: (map) => { for (const [key, value] of Object.entries(map ?? {})) values.set(String(key), String(value)); },
+    raw: values,
+  };
+}
+
+/** Drop the `localStorage` double, restoring the "storage unavailable" environment. */
+export function removeLocalStorage() {
+  delete globalThis.localStorage;
+}
+
+/**
+ * A double of `ctx.modelDirectories`: `directoryFor(sessionId)` returns the injected directory
+ * (one shared instance by default, which is what the real resolver caches per session binding).
+ * Pass `{ onDirectoryFor }` to observe the wrapper installation.
+ */
+export function makeModelDirectoriesDouble({ directory, onDirectoryFor } = {}) {
+  const shared = directory ?? createModelDirectoryDouble();
+  const calls = [];
+  return {
+    directory: shared,
+    calls,
+    service: {
+      directoryFor(sessionId) {
+        calls.push(sessionId);
+        if (typeof onDirectoryFor === "function") onDirectoryFor(sessionId);
+        return shared;
+      },
+    },
+  };
 }
 
 function uninjected(name) {
@@ -537,10 +642,10 @@ function uninjected(name) {
 export function mountClient({ value = {}, fetchOptions = {}, context = {}, dom } = {}) {
   const calls = installFetch(value, fetchOptions);
   const plugin = loadClient(dom === undefined ? {} : { dom });
-  const { ctx, slots, injections, registered } = makeClientContext(context);
+  const { ctx, slots, injections, registered, serviceInjections } = makeClientContext(context);
   plugin.apply(ctx);
   const component = (name) => slots.get(name)?.component;
-  return { plugin, ctx, slots, injections, registered, required: getClientLoad()?.required ?? [], component, calls, dom: getClientLoad()?.dom };
+  return { plugin, ctx, slots, injections, registered, serviceInjections, required: getClientLoad()?.required ?? [], component, calls, dom: getClientLoad()?.dom };
 }
 //#endregion
 

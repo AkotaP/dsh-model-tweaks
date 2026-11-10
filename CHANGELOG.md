@@ -2,17 +2,26 @@
 
 All notable changes to this project are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-No version has been released yet, so the entries below carry no release dates, and the development iterations that preceded the first release are folded into 0.1.0.
+Nothing has been published yet. `0.2.0` is the current version and the first release line cut from this repository; `0.1.0` was an internal development line that never shipped, so its entries are kept below as history and its features are available from `0.2.0` onward.
 
-## [Unreleased]
+## [0.2.0] — 2026-11-10
 
 ### Added
 
+- **Per-model effort memory**: every `provider/model` remembers its own reasoning effort in the browser's `localStorage` (browser-local, never a config or preset-document field). A model switch restores that memory; a model with no memory yet walks the **default reasoning chain** (built-in `high → medium → low`, edited on the Presets tab) top-down for the first level it supports, with a rendered, unstored, non-removable `Default` fallback. A remembered `default` keeps the field undeclared. Two switches — **remember each model's effort** and **pick from the chain automatically**, both on by default and both ordinary preset-document fields (draft + Apply) at the top of the chain card: the memory off reads and records nothing (existing entries are kept); the chain off leaves DSH's own value alone for a model without a usable memory. The resolution is installed by wrapping `ctx.modelDirectories.directoryFor().select`; models without reasoning metadata are left alone, and a rejected selection is never remembered.
+- The preset document now carries `reasoningChain`; a pre-existing file is back-filled with the built-in chain narrowed to the levels it declares, and an invalid chain is refused with a 400 naming the level.
+- `test/reasoning-chain.test.mjs` covering the document rules, the memory round-trip, the resolution rule and the directory hook (including HMR replacement and failed-selection cases).
 - `repository` metadata in `package.json` and this changelog.
 - An explicit DSH compatibility declaration — `@deepseek-ai/dsh` `^0.1.7-rc.2` in `peerDependencies`, the field the runtime actually checks (a mismatch refuses the install) — and a manifest test that keeps it from being dropped.
 
+### Performance
+
+- The model-switch hook no longer rebuilds its `select` wrapper on every `directoryFor`/`inject` call (a per-bundle token makes it idempotent), so React is not handed a fresh function prop on each render; the decoded effort memory, the `reasoning.efforts` id lists and the raw storage comparison are cached, and the memory write moved off the selection path onto an idle callback. Behavior is unchanged.
+
 ### Changed
 
+- The DSH runtime peer is open-ended (`>=0.1.7-rc.2`), so the plugin stays installable on the 0.2.x runtime; `0.1.0` was never shipped and its entries below are history.
+- `dsh.client.inject` now declares `@deepseek-ai/dsh-client-ui-model-selection`, whose `ctx.modelDirectories` service carries the model-switch hook.
 - `README.md` reduced to four sections (what it does, presets, install, test) and mirrored by `README.en.md`; both link the repository and this changelog.
 - `docs/CONTRACT.md` and `docs/HANDOFF.md` rewritten as concise third-person references: interface and data semantics in the former, engineering conventions and test infrastructure in the latter.
 - `README.md` and `README.en.md` link each other and state the supported DSH range in one line; the compatibility mechanism stays in the contract.

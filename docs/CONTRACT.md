@@ -1,6 +1,6 @@
 # dsh-model-tweaks 接口与数据契约
 
-> 适用范围：该 DSH 设置页插件与 DSH 运行版（`@deepseek-ai/dsh-*` 0.1.7-rc.2）之间的接口与语义约定。下文所有标识、枚举、数值与状态码均为当前实现的事实，不含版本演进过程。
+> 适用范围：该 DSH 设置页插件与 DSH 运行版（`@deepseek-ai/dsh-*` 0.1.7-rc.2 及以上，实测到 0.2.x）之间的接口与语义约定。下文所有标识、枚举、数值与状态码均为当前实现（包版本 0.2.0）的事实，不含版本演进过程。
 
 ## 1. 标识与文件
 
@@ -99,7 +99,9 @@ llm-pi-ai.providers.<providerId>.models[i] = {
 
 ```jsonc
 { "version": 1, "contextWindows": [...], "maxOutputs": [...], "reasoningLevels": [...],
-  "reasoningPresets": [{ "id": "...", "name": "...", "levels": [...] }] }
+  "reasoningPresets": [{ "id": "...", "name": "...", "levels": [...] }],
+  "reasoningChain": ["high", "medium", "low"],
+  "rememberEffort": true, "useReasoningChain": true }
 ```
 
 内置默认（host 与 client 各有一份逐字相同的镜像，跨半边测试逐项比对）：
@@ -110,17 +112,23 @@ llm-pi-ai.providers.<providerId>.models[i] = {
 | `maxOutputs` | `[4000, 8000, 16000, 32000, 64000, 128000, 256000]` |
 | `reasoningLevels` | `["off","minimal","low","medium","high","xhigh","max"]` |
 | `reasoningPresets` | `DeepSeek = [off, low, high, max]`、`OpenAI Standard = [off, low, medium, high]`、`Simple = [off, low, high]`（都以 `off` 开头） |
+| `reasoningChain` | `["high", "medium", "low"]`（元素 ⊆ `reasoningLevels`，可为空） |
+| `rememberEffort` | `true`（每模型记忆开关） |
+| `useReasoningChain` | `true`（自动链条开关） |
+
+两个开关是普通预设字段（草稿 + Apply，随整份文档提交）。每模型挡位记忆的**数据**不在文档里：它存在浏览器 `localStorage`（第 10 节），因此不随预设保存/恢复。
 
 - 文件不存在或损坏 → 回落内置默认并记 warning，不写盘、不报 5xx；第一次改动才落盘。
-- 校验：数值列表为正整数、去重、升序；挡位列表为非空字符串并保持顺序；`reasoningPresets[].levels` 必须 ⊆ `reasoningLevels`，否则整体拒绝（400）。加载时某组合引用了文件里不存在的挡位，整份回落内置默认并记 warning。
-- `Default` 行由 UI 渲染，不存储、不可删除。
+- 校验：数值列表为正整数、去重、升序；挡位列表为非空字符串并保持顺序；`reasoningPresets[].levels` 与 `reasoningChain` 必须 ⊆ `reasoningLevels`，否则整体拒绝（400）。加载时某组合/链条引用了文件里不存在的挡位，整份回落内置默认并记 warning。
+- 向后兼容：`reasoningChain` 缺失时按内置默认读取（链条只保留该文档 `reasoningLevels` 中仍然存在的挡位）；两个开关缺失时补 `true`；显式空数组表示「不遍历链条」，与缺失不同。已退役的 `keepLastReasoning` 字段在读入时被忽略、不再回写。
+- `Default` 行由 UI 渲染，不存储、不可删除（思考挡位链条末尾同样有一行不可删除的 `Default`）。
 - 显示名与存储值分离：**实际值永远存真实数字**，显示名只做十进制缩写——`formatCount`：能被 `1000000` 整除 → `<n>M`；能被 `1000` 整除 → `<n>K`；否则原样输出。即 `1000000→1M`、`128000→128K`、`200000→200K`、`1000→1K`；`1048576`、`131072`、`262144`、`32768`、`8192`、`1024` 等二进制值不做缩写。
 
 ## 7. 客户端契约
 
 - 外壳：`window.__ModuleLoader__.load({ id: "dsh-model-tweaks", factory })`；`require` 只使用 `react` / `react/jsx-runtime`；导出 `apply` 与 `inject = ["slots", "locale"]`。
 - slot 注册：`ctx.slots.register({ name: "settings.section", id: "model-tweaks", order: 250, label: () => t("nav"), locale: NS }, ModelCapabilitiesSection)`；label 走 locale（英文 `Model Capabilities`，中文 `模型能力`）。
-- 页面：两个页签 `Model Capabilities` / `Presets`，只管理第 2 节的四个字段与第 6 节的四份预设列表。
+- 页面：两个页签 `Model Capabilities` / `Presets`，只管理第 2 节的四个字段与第 6 节的预设列表及默认思考挡位配置（链条编辑见第 10 节）。
 - **草稿 + Apply**：所有编辑器改动（下拉、勾选、列表增删改与排序、`Reset to Default`）只写本地草稿；唯一写盘点是 `Apply`，有改动才可用。切换模型或页签必须丢弃未保存草稿。`Restore default presets` 与 `Save as preset…` 是显式确认动作，不受草稿约束。
 - 结构（可断言约束）：
   - 卡片壳 `.mtw_group`（`border-l2` + 圆角 + `overflow:hidden`）与标题 `.mtw_groupHeader`（内含 `.mtw_caret` 与标题 span）在供应商卡片、模型卡片、Presets 折叠段三处共用；模型项为 `mtw_modelItem mtw_group`，选中态 `.mtw_modelRowActive`（仅加粗）。
@@ -136,7 +144,7 @@ llm-pi-ai.providers.<providerId>.models[i] = {
 ## 8. 依赖与生效机制
 
 - host 半零外部依赖：不 import 任何 `@deepseek-ai/*`，全部能力经 `ctx.get("…")` 宽容读取；若将来真的 import，必须同时声明依赖并装进该插件自己的 `node_modules`（manifest 测试有守卫）。host 用 Node 原生 ESM 解析，裸包名只从插件目录向上查找。
-- client 半需要的包只写进 `package.json` 的 `dsh.client.inject`（即 DSH 客户端模块图与激活顺序），不需要安装：`@deepseek-ai/dsh-client-runtime`、`-locale`、`-ui-slots`、`-ui-settings`；`react` / `react/jsx-runtime` 是基线模块，不声明。
+- client 半需要的包只写进 `package.json` 的 `dsh.client.inject`（即 DSH 客户端模块图与激活顺序），不需要安装：`@deepseek-ai/dsh-client-runtime`、`-locale`、`-ui-slots`、`-ui-settings`、`-ui-model-selection`（后者提供第 10 节拦截的 `ctx.modelDirectories` 服务）；`react` / `react/jsx-runtime` 是基线模块，不声明。
 - client 改动由 `dsh-client-hmr` 重载 bundle，页面无需手动刷新；host 改动必须重启 DSH。
 - 兼容性声明写在 `peerDependencies`：DSH 只校验名字为 `@deepseek-ai/dsh` 或以 `@deepseek-ai/dsh-` 开头的条目，把声明范围与自己的运行时版本（prerelease 参与比较）做 semver 判定；不满足时安装被拒绝、启动给出告警，可用 `dsh plugin allow-version <包@版本> --dsh-version <确切版本>` 做确切版本豁免（记录在该 profile 的 `compatibility.json`）。`engines.dsh` 只是文档，运行时不会读取；`@deepseek-ai/cordis` 不在校验范围内。
 
@@ -146,9 +154,31 @@ llm-pi-ai.providers.<providerId>.models[i] = {
 - `test/manifest.test.mjs`：三处 id 一致、`dsh.client.inject`、host 未 import 未声明依赖、host 与 client 的 `DEFAULT_PRESETS` 与 `formatCount` 逐字一致、每个内置思考组合以 `off` 开头且只用已知挡位。
 - `test/host-api.test.mjs`：围栏状态码、`get` 的枚举与 `effective`/`userDeclared`、整数组写入形状与 Default → 删除字段、正整数与挡位越界 400、`model-not-found`、`settings-conflict`、预设读写与损坏回落、`formatCount`，以及「仅 `describe().value` 可读」时的读取面回归。
 - `test/client-page.test.mjs`：模块 id / inject / slot 注册、两个页签与四个控件、模态不含 Audio/Video、草稿语义（改动零请求、Apply 恰好一次 save、Default → `null`）、卡片折叠与选中、每卡片 Apply、诊断行、CSS 先删后插与扁平化与分隔 token 约束。
+- `test/reasoning-chain.test.mjs`：链条预设的校验与向后兼容（含退役字段忽略）、`localStorage` 记忆的读写/损坏回落/不可用降级、切换解析（记忆 → 链条 → Default）与记录时机（手动/自动/失败不记录）、无推理元数据不干预，以及 client 对 `ctx.modelDirectories.directoryFor().select` 的拦截安装与 HMR 替换。
 - 结构类断言具备突变敏感性：破坏卡片壳类名、默认折叠态或默认选中状态会被现有用例命中。
 
-## 10. 已知缺陷与根因
+## 10. 默认思考挡位与按模型记忆
+
+DSH 在 Web GUI 里切换模型/供应商时会提交一个完整选择。客户端选择器（`@deepseek-ai/dsh-client-ui-model-selection` 的 `ModelDirectory.select`）在切换路由时只带上目标模型的 `reasoning.defaultEffort`；运行版多数 provider 没有配置 `reasoning` 默认挡位，于是切换后思考挡位显示为 `Default`。本插件在客户端补两层：**每个模型的记忆**（浏览器本地）与**默认链条**（预设文档）。
+
+- **记忆**：`{provider}/{model} → 挡位 | "default"`，存于 `localStorage["dsh-model-tweaks/efforts"]`（`{ version: 1, efforts: {…} }`）。它不是配置：不进预设文档、不跨浏览器或设备；读失败、值损坏、隐私模式一律按「无记忆」处理，写失败静默。
+- **两个开关**（预设文档字段，默认均为 `true`，在预设页链条卡片顶部，草稿 + Apply）：
+  - `rememberEffort`：关闭后不读也不写记忆、手动选择也不记录（已有条目保留，重新打开即恢复）；无记忆的模型仍按链条选择。
+  - `useReasoningChain`：关闭后，没有可用记忆的模型保持 DSH 自己的值（选择原样提交，不记录）；有记忆的模型仍应用记忆。两个都关 = 完全回到 DSH 原生行为。
+- **切换解析**（`directory.select` 被调用，且 `selection.provider/model` 与目录当前选择不同）：
+  1. 该模型有记忆且为具体挡位、目标模型支持 → 应用，不再记录；
+  2. 记忆为 `default` → 不声明字段（不套链条）；
+  3. 有记忆但目标模型已不支持 → 视为失效，按链条重选并覆盖记忆；
+  4. 无记忆 → 按 `reasoningChain` 自上而下取第一个目标模型支持的挡位，成功后记录；
+  5. 链条也无可用 → `Default`（从 selection 中删除 `reasoningEffort`），成功后记录 `default`。
+- **记录时机**：① 用户在同一模型内手动选择挡位（含 `Default`）→ 选择成功后记录；② 自动链条选择 → 成功后记录。失败的选择一律不记录。
+- **能力过滤**：候选挡位必须出现在目标模型的 `reasoning.efforts[].id` 中；目标模型没有 `reasoning` 元数据（非推理模型）时不干预也不记录，尊重 DSH 原行为。
+- **拦截方式**：client 半在 `ctx.inject(["modelDirectories"], …)` 里包装 `directoryFor()` 返回实例的 `select`。包装永远基于原始 `select` 重建（HMR 重载替换旧包装而不是叠加，避免旧配置闭包残留）。这是 DSH 内部服务的实例方法，不是官方扩展点：服务缺失、目录尚未加载或结构变化时一律退回原 selection，设置页与其余功能不受影响。
+- **链条生效**：`reasoningChain` 存于第 6 节的预设文档；client 半在 `apply` 时读一次 `get` 接口填充运行时配置，设置页保存成功后同步。宿主半未更新（旧版 `normalizePresets` 不认识 `reasoningChain`）时，保存回包缺少该字段即视为失败并提示重启 DSH，绝不静默丢配置。
+- **UI**：预设页「默认思考挡位」卡片只编辑链条；末尾固定 `Default` 行渲染、不存储、不可删除。记忆不提供编辑 UI——用户直接在 Effort 菜单改挡位即写入记忆。
+- **性能**：包装按 bundle token 幂等——同一页面内重复 `directoryFor`/`inject` 不会重建 `select` 函数（重建会把新函数当成新 props，诱发额外重渲染）；记忆解码结果缓存，靠原始字符串比较失效（跨页面写入仍可见）；`reasoning.efforts` 的 id 列表按目录元数据对象缓存（WeakMap）；记忆写盘用 `requestIdleCallback`（没有则 `setTimeout`）延后，切换路径只更新内存，绝不让同步 `localStorage.setItem` 落在选择请求之后。以上都不改变行为，只减少切换路径上的主线程工作。
+
+## 11. 已知缺陷与根因
 
 | 现象 | 根因 |
 |---|---|

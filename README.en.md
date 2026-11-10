@@ -2,9 +2,9 @@
 
 [中文](README.md) | English
 
-A DSH (DeepSeek Harness) web plugin: adds a **Model Capabilities** page to Settings for managing each model's context window, max output, input modalities and reasoning levels, plus the plugin's own global preset lists.
+A DSH (DeepSeek Harness) web plugin: adds a **Model Capabilities** page to Settings for managing each model's context window, max output, input modalities and reasoning levels, plus the plugin's own global preset lists and default reasoning chain.
 
-Supports DSH `0.1.7-rc.2` and later (0.1.x).
+Supports DSH `0.1.7-rc.2` and later (verified through 0.2.x). Current version `0.2.0`.
 
 ## What it does
 
@@ -13,6 +13,7 @@ Supports DSH `0.1.7-rc.2` and later (0.1.x).
 - Four fields: **Context Window**, **Max Output**, **Input Modalities** (Text / Image only — DSH has no audio/video), **Reasoning Levels** (dropdown: Default / Global / named preset / Custom…).
 - **Draft + Apply**: only the `Apply` inside that model's editor writes to `settings.yaml` under `llm-pi-ai`. `Reset to Default` is a draft action too — it still needs `Apply`.
 - Choosing `Default` **deletes** the field (never `null`/`0`/an empty object) and hands the value back to the DSH engine.
+- **Per-model effort memory**: every model (provider + model) remembers its own effort in the browser's `localStorage`, restored when you switch back. A model seen for the first time walks the chain top-down for the first level it supports, and otherwise falls back to `Default`. The chain is edited on the Presets tab; its trailing `Default` row is a fixed fallback that cannot be removed. The memory is not configuration and never enters the preset document. A **memory switch** and an **automatic-chain switch** (both on by default, both saved with the card's Apply) sit at the top of the chain card: turn the memory off and nothing is read or remembered; turn the chain off and a model without a memory keeps DSH's own default.
 
 ![Model Capabilities](docs/images/en/model-capabilities.png)
 
@@ -20,7 +21,7 @@ Supports DSH `0.1.7-rc.2` and later (0.1.x).
 
 ## Presets
 
-The `Presets` tab manages four plugin-owned lists. Each one is a card, and **every card has its own Apply at the bottom** (draft mode as well):
+The `Presets` tab manages the plugin-owned lists and the default reasoning chain. Each one is a card, and **every card has its own Apply at the bottom** (draft mode as well):
 
 | Card              | Built-in contents                                                                                                  |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -28,6 +29,7 @@ The `Presets` tab manages four plugin-owned lists. Each one is a card, and **eve
 | Max Output        | Default, 4K, 8K, 16K, 32K, 64K, 128K, 256K                                                                         |
 | Reasoning Levels  | off, minimal, low, medium, high, xhigh, max (add / edit / delete / reorder)                                        |
 | Reasoning Presets | DeepSeek · OpenAI Standard · Simple (each starts with `off`; create, edit, delete, reuse across models) |
+| Default Reasoning | chain (built-in `high → medium → low`, add / edit / delete / reorder) plus the memory switch and the automatic-chain switch (both on by default); the trailing `Default` is a fixed fallback. The chain only decides what a model *without* a memory gets |
 
 - Stored in `{DSH_HOME}/dsh-model-tweaks/presets.json`; a missing or broken file falls back to the built-in defaults instead of failing.
 - `Restore default presets` at the bottom of the page brings back the built-in lists.

@@ -24,7 +24,7 @@
 | client（`lib/client.js`） | DSH 客户端模块表（`__ModuleLoader__`） | 用到的客户端插件包写进 `package.json` 的 `dsh.client.inject`，不需要安装；`react` / `react/jsx-runtime` 是基线模块，不声明 |
 
 - `dsh.client.inject` 的语义是「客户端模块图 + 激活顺序」，不是 Node 包名。当前列：`@deepseek-ai/dsh-client-runtime`、`-locale`、`-ui-slots`、`-ui-settings`（`ui-slots` 提供 `slots`，`client-locale` 提供 `locale`，声明与实际用到的服务必须对应）。
-- `peerDependencies` 里 `@deepseek-ai/cordis`（optional）是给 pnpm 看的；`@deepseek-ai/dsh` 的 `^0.1.7-rc.2` 是**兼容性声明**（判定规则见 CONTRACT §8），两项都标 optional 只是避免 pnpm 索要它们，manifest 测试会守着 dsh peer 不被删掉。
+- `peerDependencies` 里 `@deepseek-ai/cordis`（optional）是给 pnpm 看的；`@deepseek-ai/dsh` 的 `>=0.1.7-rc.2`（open-ended，接受 0.2.x 运行时）是**兼容性声明**（判定规则见 CONTRACT §8），两项都标 optional 只是避免 pnpm 索要它们，manifest 测试会守着 dsh peer 不被删掉。
 - host 一旦需要 import DSH 包，manifest 测试会要求同步补 `dependencies`，否则测试变红。
 
 ## 3. 生效机制
@@ -47,6 +47,7 @@
 - **host API**：`callApi(routes, method, body, options)` → `{ status, body }`；默认带 loopback + same-origin 头，413/415 用 `raw`/`headers` 构造，405 用 `options.method: "GET"`；成功响应读 `body.value`。
 - **settings 双击** `makeSettingsDouble(...)`：复刻 0.1.7-rc.2 的 `applyPathOp`（数组按索引编辑、叶子 `unset` 是 `delete`、越界索引抛 `TypeError`、`set` 的 `null` 就是 `null`）；`omitGet: true` 去掉 `get()`，用于钉住「读取面必须是 `describe()[].value`」的回归；`writable` 同时挂在 service 与 descriptor 上，以覆盖 host 的两条读取路径。
 - **llm 双击** `makeLlmDouble(...)`：`listConfigurableProviders` / `listModels`（可指定某些 provider 失败，用于验证「单组失败不整体失败」）/ `resolveModelInfo`。
+- **模型目录双击** `createModelDirectoryDouble(...)` / `makeModelDirectoriesDouble(...)`：复刻 `ctx.modelDirectories.directoryFor()` 返回的 `ModelDirectory`（`store.getSnapshot().current`、`catalog.reasoningFor()`、`select`），用于验证 v1.19 的切换挡位钩子；`makeClientContext` 同时提供 `ctx.inject(deps, callback)`，服务缺失时回调不执行。
 - **fetch 双击** `installFetch(value)`：把响应包成 `{ ok: true, value }` 并记录每次调用（`{ method, url, body }`）。
 - **渲染**：`createInstance()` + `renderComponent()` 复用同一实例才能观察 effect 里的 `setState`（首帧 → `await flush()` → 重渲染）；`collect` / `textOf` / `hasClass` 等用于断言元素树。
 - harness 顶层把 `setInterval` 置为 no-op、保留真实 `setTimeout`（组件 2.5 秒自动收起依赖它）。
@@ -57,7 +58,8 @@
 |---|---|
 | `test/manifest.test.mjs` | 三处 id 一致、`dsh.client.inject`、host 依赖声明守卫、host 与 client 的 `DEFAULT_PRESETS` 与 `formatCount` 逐字一致、内置思考组合以 `off` 开头且只用已知挡位 |
 | `test/host-api.test.mjs` | 围栏状态码；`get` 的分组过滤、`effective`/`userDeclared`、`warnings`、`llm` 缺失回退；整数组写入与 Default → 删除字段；校验 400 与冲突 409；预设读写与损坏回落；`formatCount` |
-| `test/client-page.test.mjs` | 模块 id / inject / slot 注册；页签与控件语义；草稿语义（改动零请求、Apply 恰好一次 save、Default → `null`、切模型丢草稿）；卡片折叠与选中；每张卡片自己的 Apply 与整份文档提交；诊断行；CSS 先删后插、扁平化与分隔 token 约束 |
+| `test/client-page.test.mjs` | 模块 id / inject / slot 注册；页签与控件语义；草稿语义（改动零请求、Apply 恰好一次 save、Default → `null`、切模型丢草稿）；卡片折叠与选中；每张卡片自己的 Apply 与整份文档提交；诊断行；CSS 先删后插、扁平化与分隔 token 约束；v1.19 链条卡片的固定 Default 行与草稿语义 |
+| `test/reasoning-chain.test.mjs` | v1.19 链条预设文档（默认值、双开关校验、旧文件回填、退役字段忽略）、`localStorage` 挡位记忆的读写与损坏回落、`resolveSwitchEffort` 解析规则（记忆/链条/两个开关的组合），以及 `ctx.modelDirectories` 包装的安装、记忆写入、失败不记录、HMR 替换 |
 | `test/support/format-cases.mjs` | `formatCount` 共用用例表，跨半数用同一张表断言 |
 
 - `node --test` 会把 `test/support/harness.mjs` 与 `format-cases.mjs` 也当作测试文件各执行一次（0 断言、显示通过），属预期现象。
@@ -90,4 +92,4 @@
 - `README.md` / `README.en.md`：只保留四段结构（作用、预设功能、安装、测试）与截图；功能或安装方式变化必须同步。
 - `docs/CONTRACT.md` 是接口与语义的唯一依据；实现与契约不一致时，先改契约再改代码。
 - 截图位于 `docs/images/{zh,en}/`，为离线渲染产物（非真机截屏）；UI 变更后需重新生成。
-- 发布（尚未执行）：更新 `package.json` 的 `version`，确认 `node --test` 全绿且 `skipped 0`；`files` 白名单为 `lib`、`cordis.patch.yml`、`README.md`、`README.en.md`、`docs`、`package.json`。插件以链接方式安装，不需要 `npm publish`。
+- 版本：当前 `0.2.0`（`0.1.0` 是未发布的内部开发线，其内容随 `0.2.0` 首次可用）。发布（尚未执行）：更新 `package.json` 的 `version` 与 `CHANGELOG.md`，确认 `node --test` 全绿且 `skipped 0`；`files` 白名单为 `lib`、`cordis.patch.yml`、`README.md`、`README.en.md`、`docs`、`package.json`。插件以链接方式安装，不需要 `npm publish`。

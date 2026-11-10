@@ -39,6 +39,11 @@ const PRESETS = {
     { id: "p-deepseek", name: "DeepSeek", levels: ["low", "high", "max"] },
     { id: "p-simple", name: "Simple", levels: ["low", "high"] },
   ],
+  // v1.19: the plugin's own preset document also carries the default reasoning chain and its two
+  // switches (per-model memory, automatic chain).
+  reasoningChain: ["high", "low"],
+  rememberEffort: true,
+  useReasoningChain: true,
 };
 
 const ENTRY = (id, effective = {}) => ({
@@ -413,6 +418,64 @@ describe("client page contract", { skip: NEEDS_CLIENT }, () => {
     assert.equal(calls.length, baseline, "collapsing a Presets section must not fetch");
   });
 
+  it("manages the default reasoning chain card with a fixed Default fallback (v1.19)", async () => {
+    const reply = () => ({ presets: { ...PRESETS, reasoningChain: ["medium", "low"] } });
+    const mounted = await loaded({ value: { get: GET_VALUE(), presets: reply } });
+    const baseline = mounted.calls.length;
+    await applyClick(buttonByText(mounted.elements, /preset/i));
+    const tab = mounted.render();
+    const tabHeader = buttonByText(tab, /Default Reasoning Effort/i);
+    assert.ok(tabHeader, "the Presets tab must offer the chain card; rendered:\n  " + inventory(tab));
+    assert.equal(tabHeader.props["aria-expanded"], false, "the chain card starts collapsed like every other Presets card");
+    await applyClick(tabHeader);
+    const open = mounted.render();
+    assert.equal(mounted.calls.length, baseline, "expanding the chain card must not fetch");
+
+    const header = buttonByText(open, /Default Reasoning Effort/i);
+    const parents = parentMapOf(open.tree);
+    const card = ancestorsOf(header, parents).find((element) => hasClass(element, "group"));
+    assert.ok(card, "the chain card must use the shared card shell");
+    const inCard = collect(card);
+    const boxes = checkboxes(inCard);
+    assert.equal(boxes.length, 2, "the chain card carries the memory switch and the automatic-chain switch; rendered:\n  " + inventory(inCard));
+    assert.equal(boxes[0].props.checked, true, "the memory switch defaults to on");
+    assert.equal(boxes[1].props.checked, true, "the automatic-chain switch defaults to on");
+    assert.ok(textIncludes(inCard, /High/) && textIncludes(inCard, /Low/), "the chain rows must render in order; rendered:\n  " + inventory(inCard));
+    assert.ok(textIncludes(inCard, /cannot be removed/i), "the Default fallback must say it cannot be removed");
+
+    // The fixed Default row carries no delete/move affordance; a chain row does.
+    const rows = inCard.filter((element) => hasClass(element, "row"));
+    const fixed = rows.find((row) => collectStrings(row.props?.children ?? []).some((text) => /cannot be removed/i.test(text)));
+    assert.ok(fixed, "the fixed Default fallback row must render; rendered:\n  " + inventory(inCard));
+    assert.equal(findAllByType(collect(fixed), "button").length, 0, "the Default fallback row must not offer any action");
+
+    const deletes = inCard.filter((element) => element.type === "button" && /delete|删除/i.test(textOfButton(element)));
+    assert.equal(deletes.length, 2, "only the two chain rows are removable (the Default fallback carries no action); rendered:\n  " + inventory(inCard));
+    await applyClick(deletes[0]);
+    const drafted = mounted.render();
+    assert.equal(mounted.calls.length, baseline, "removing a chain level must stay a draft (zero fetch)");
+
+    // Toggle the memory switch from the fresh render: an element captured before the removal closes
+    // over the previous draft and would overwrite the removal.
+    const memoryBox = checkboxes(drafted)[0];
+    assert.equal(memoryBox.props.checked, true, "precondition: the memory switch is still on");
+    setChecked(memoryBox, false);
+    const draftedAgain = mounted.render();
+    assert.equal(checkboxes(draftedAgain)[0].props.checked, false, "clicking the memory switch updates the draft immediately");
+    assert.equal(mounted.calls.length, baseline, "a switch edit stays local too (no request before Apply)");
+    const apply = buttonByText(draftedAgain, /apply|应用/i);
+    assert.notEqual(apply.props.disabled, true, "pending edits keep Apply enabled");
+
+    await applyClick(apply);
+    await flush(5);
+    const saves = mounted.calls.filter((call) => String(call.url).endsWith(API_PREFIX + "/presets") && call.body?.action === "save");
+    assert.equal(saves.length, 1, "Apply must send exactly one whole-document save");
+    assert.deepEqual(saves[0].body.payload.reasoningChain, ["low"], "removing High leaves the pending chain inside the submitted document");
+    assert.equal(saves[0].body.payload.rememberEffort, false, "the memory switch rides along in the same document");
+    assert.equal(saves[0].body.payload.useReasoningChain, true, "the chain switch rides along in the same document");
+    assert.equal(buttonByText(mounted.render(), /apply|应用/i).props.disabled, true, "after a successful save the card is clean again");
+  });
+
   it("formats counts decimal-only, leaving binary values as plain numbers", async () => {
     const formatted = () => ({
       providers: [{ provider: "ollama", displayName: "Ollama Local", declared: true, error: null, models: [MODEL] }],
@@ -439,7 +502,7 @@ describe("client page contract", { skip: NEEDS_CLIENT }, () => {
   });
 
   it("restores the default presets with exactly one explicit resetDefaults request", async () => {
-    const restored = { version: 1, contextWindows: [1000000], maxOutputs: [4000], reasoningLevels: ["low"], reasoningPresets: [] };
+    const restored = { version: 1, contextWindows: [1000000], maxOutputs: [4000], reasoningLevels: ["low"], reasoningPresets: [], reasoningChain: ["low"], rememberEffort: true, useReasoningChain: true };
     const { elements, render, calls } = await loaded({ value: { get: GET_VALUE(), presets: () => ({ presets: restored }) } });
     const baseline = calls.length;
     await applyClick(buttonByText(elements, /preset/i));      // Presets tab
@@ -885,7 +948,7 @@ describe("client page contract", { skip: NEEDS_CLIENT }, () => {
   it("keeps edits as a draft: no fetch until Apply, then exactly one save", async () => {
     const { elements, render, calls } = await loadedExpanded({ value: { get: GET_VALUE(), save: SAVED({ contextWindow: 16384 }) } });
     const baseline = calls.length;
-    assert.equal(baseline, 1, "the mount performs exactly one get");
+    assert.equal(baseline, 2, "the mount performs the chain preload get plus the page's own get (v1.19)");
 
     const contextWindow = countSelect(elements);
     const target = optionValue(contextWindow).find(isCount);

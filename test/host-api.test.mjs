@@ -982,7 +982,13 @@ describe("presets", () => {
 			contextWindows: [4096, 8192, 16384],
 			maxOutputs: [4096, 8192],
 			reasoningLevels: ["high", "low", "off"],
-			reasoningPresets: [{ id: "p-custom", name: "Custom", levels: ["high", "low"] }]
+			reasoningPresets: [{ id: "p-custom", name: "Custom", levels: ["high", "low"] }],
+			// v1.19: an omitted chain adopts the built-in preference, narrowed to the levels this
+			// document still declares ("medium" is not in reasoningLevels above, so it drops out);
+			// the two switches default to on.
+			reasoningChain: ["high", "low"],
+			rememberEffort: true,
+			useReasoningChain: true
 		});
 		const onDisk = JSON.parse(await readFile(presetsFile(), "utf8"));
 		assert.deepStrictEqual(onDisk, response.body.value.presets);
@@ -1064,6 +1070,9 @@ describe("presets", () => {
 		assert.deepStrictEqual(body.value.presets.maxOutputs, [4096, 131072]);
 		assert.deepStrictEqual(body.value.presets.reasoningLevels, ["max", "off", "low"], "user order is preserved");
 		assert.deepStrictEqual(body.value.presets.reasoningPresets, [{ id: "p-mine", name: "Mine", levels: ["low", "max"] }]);
+		// v1.19: an old file without the chain fields keeps the built-in preference, intersected
+		// with the levels this file declares.
+		assert.deepStrictEqual(body.value.presets.reasoningChain, ["low"]);
 	});
 
 	it("falls back to the built-ins for a corrupt file and warns", async () => {
@@ -1100,6 +1109,7 @@ describe("presets", () => {
 		assert.deepStrictEqual(response.body.value.presets.reasoningPresets.map((preset) => preset.name), ["DeepSeek", "OpenAI Standard", "Simple"]);
 		assert.deepStrictEqual(response.body.value.presets.contextWindows, [8000, 16000, 32000, 64000, 128000, 256000, 512000, 1000000]);
 		assert.deepStrictEqual(response.body.value.presets.maxOutputs, [4000, 8000, 16000, 32000, 64000, 128000, 256000]);
+		assert.deepStrictEqual(response.body.value.presets.reasoningChain, ["high", "medium", "low"], "v1.19: resetDefaults restores the built-in chain");
 		const onDisk = JSON.parse(await readFile(presetsFile(), "utf8"));
 		assert.deepStrictEqual(onDisk, response.body.value.presets);
 	});
